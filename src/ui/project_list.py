@@ -18,6 +18,7 @@ class ProjectListWidget(QTableWidget):
     open_folder_clicked = pyqtSignal(Project)
     open_terminal_clicked = pyqtSignal(Project)
     open_claude_clicked = pyqtSignal(Project)
+    run_command_clicked = pyqtSignal(Project, dict)  # project, command dict
 
     def __init__(self, parent=None):
         """Initialize the list widget."""
@@ -157,6 +158,16 @@ class ProjectListWidget(QTableWidget):
 
         details_action = menu.addAction("Edit Details")
         details_action.triggered.connect(lambda: self.details_clicked.emit(project))
+
+        # Custom Commands submenu
+        if project.commands:
+            menu.addSeparator()
+            commands_menu = menu.addMenu("Custom Commands")
+            for cmd in project.commands:
+                action = commands_menu.addAction(cmd['name'])
+                action.triggered.connect(
+                    lambda checked, p=project, c=cmd: self.run_command_clicked.emit(p, c)
+                )
 
         menu.exec(self.cursor().pos())
 

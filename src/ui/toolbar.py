@@ -14,6 +14,8 @@ class Toolbar(QWidget):
     settings_clicked = pyqtSignal()
     refresh_clicked = pyqtSignal()
     new_project_clicked = pyqtSignal()
+    select_mode_changed = pyqtSignal(bool)
+    batch_status_changed = pyqtSignal(str)  # 'active', 'hold', 'archived'
 
     def __init__(self, parent=None):
         """Initialize the toolbar."""
@@ -85,6 +87,46 @@ class Toolbar(QWidget):
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.clicked.connect(self.settings_clicked.emit)
         layout.addWidget(self.settings_btn)
+
+        # Separator
+        layout.addSpacing(12)
+
+        # Select mode toggle
+        self.select_btn = QPushButton("Select")
+        self.select_btn.setCheckable(True)
+        self.select_btn.setObjectName("iconButton")
+        self.select_btn.setToolTip("Toggle selection mode")
+        self.select_btn.clicked.connect(self._on_select_toggled)
+        layout.addWidget(self.select_btn)
+
+        # Batch status buttons (hidden by default)
+        self.batch_container = QWidget()
+        batch_layout = QHBoxLayout(self.batch_container)
+        batch_layout.setContentsMargins(0, 0, 0, 0)
+        batch_layout.setSpacing(4)
+
+        self.active_btn = QPushButton("Active")
+        self.active_btn.setStyleSheet("background-color: #4caf50;")
+        self.active_btn.clicked.connect(lambda: self.batch_status_changed.emit('active'))
+        batch_layout.addWidget(self.active_btn)
+
+        self.hold_btn = QPushButton("On Hold")
+        self.hold_btn.setStyleSheet("background-color: #ff9800;")
+        self.hold_btn.clicked.connect(lambda: self.batch_status_changed.emit('hold'))
+        batch_layout.addWidget(self.hold_btn)
+
+        self.archive_btn = QPushButton("Archive")
+        self.archive_btn.setStyleSheet("background-color: #9e9e9e;")
+        self.archive_btn.clicked.connect(lambda: self.batch_status_changed.emit('archived'))
+        batch_layout.addWidget(self.archive_btn)
+
+        self.batch_container.setVisible(False)
+        layout.addWidget(self.batch_container)
+
+    def _on_select_toggled(self, checked: bool):
+        """Handle select mode toggle."""
+        self.batch_container.setVisible(checked)
+        self.select_mode_changed.emit(checked)
 
     def set_view(self, view: str):
         """Set the current view mode.

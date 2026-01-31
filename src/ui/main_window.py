@@ -44,6 +44,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Project Manager")
         self.resize(1200, 800)
 
+        # Selection mode state
+        self._select_mode = False
+        self._selected_projects: set[str] = set()  # Set of project paths
+
         # Timer to refresh open project status every 3 seconds
         self._open_status_timer = QTimer(self)
         self._open_status_timer.timeout.connect(self._refresh_open_status)
@@ -66,6 +70,8 @@ class MainWindow(QMainWindow):
         self.toolbar.settings_clicked.connect(self._show_settings)
         self.toolbar.refresh_clicked.connect(self.app.refresh_projects)
         self.toolbar.new_project_clicked.connect(self._show_new_project)
+        self.toolbar.select_mode_changed.connect(self._on_select_mode_changed)
+        self.toolbar.batch_status_changed.connect(self._on_batch_status_change)
         main_layout.addWidget(self.toolbar)
 
         # Main content area with splitter
@@ -104,6 +110,7 @@ class MainWindow(QMainWindow):
         self.list_view.open_folder_clicked.connect(self._open_folder)
         self.list_view.open_terminal_clicked.connect(self._open_terminal)
         self.list_view.open_claude_clicked.connect(self._open_claude)
+        self.list_view.run_command_clicked.connect(self._run_custom_command)
         self.list_view.setVisible(False)
         content_layout.addWidget(self.list_view)
 
@@ -194,6 +201,12 @@ class MainWindow(QMainWindow):
             card.open_folder_clicked.connect(self._open_folder)
             card.open_terminal_clicked.connect(self._open_terminal)
             card.open_claude_clicked.connect(self._open_claude)
+            card.selection_changed.connect(self._on_selection_changed)
+            card.run_command_clicked.connect(self._run_custom_command)
+
+            # Restore select mode if active
+            if self._select_mode:
+                card.set_select_mode(True)
 
             current_row.addWidget(card)
             self._project_cards.append(card)
@@ -289,6 +302,43 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to open Claude Code: {e}")
 
+    def _run_custom_command(self, project: Project, command: dict):
+        """Run a custom command for the project.
+
+        Args:
+            project: Project to run command for.
+            command: Command dict with 'name' and 'command' keys.
+        """
+        try:
+            # Replace placeholders
+            cmd_str = command['command']
+            cmd_str = cmd_str.replace('{path}', str(project.path))
+            cmd_str = cmd_str.replace('{name}', project.name)
+
+            if platform.system() == 'Windows':
+                # Open a new terminal and run the command
+                subprocess.Popen(
+                    ['cmd', '/c', 'start', 'cmd', '/k', cmd_str],
+                    cwd=str(project.path),
+                    shell=True
+                )
+            elif platform.system() == 'Darwin':
+                # macOS - open Terminal and run command
+                subprocess.Popen(
+                    ['osascript', '-e',
+                     f'tell application "Terminal" to do script "cd {project.path} && {cmd_str}"']
+                )
+            else:
+                # Linux - try to open terminal with command
+                for term in ['gnome-terminal', 'konsole', 'xterm']:
+                    try:
+                        subprocess.Popen([term, '--', 'bash', '-c', cmd_str], cwd=str(project.path))
+                        break
+                    except FileNotFoundError:
+                        continue
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to run command: {e}")
+
     def _show_project_details(self, project: Project):
         """Show project details dialog.
 
@@ -369,3 +419,64 @@ class MainWindow(QMainWindow):
                 card.set_open_status(is_open)
         except Exception:
             pass  # Silently ignore errors in background refresh
+
+    def _on_select_mode_changed(self, enabled: bool):
+        """Handle selection mode toggle.
+
+        Args:
+            enabled: Whether selection mode is enabled.
+        """
+        self._select_mode = enabled
+        self._selected_projects.clear()
+
+        for card in self._project_cards:
+            card.set_select_mode(enabled)
+
+    def _on_selection_changed(self, project: Project, selected: bool):
+        """Handle project selection change.
+
+        Args:
+            project: The project that was selected/deselected.
+            selected: Whether it's now selected.
+        """
+        path_str = str(project.path)
+        if selected:
+            self._selected_projects.add(path_str)
+        else:
+            self._selected_projects.discard(path_str)
+
+    def _on_batch_status_change(self, status: str):
+        """Handle batch status change for selected projects.
+
+        Args:
+            status: New status ('active', 'hold', 'archived').
+        """
+        if not self._selected_projects:
+            QMessageBox.information(
+                self,
+                "No Selection",
+                "Please select one or more projects first."
+            )
+            return
+
+        count = len(self._selected_projects)
+
+        # Update each selected project
+        for card in self._project_cards:
+            if str(card.project.path) in self._selected_projects:
+                card.project.status = status
+                self.app.update_project(card.project)
+
+        # Clear selection and exit select mode
+        self._selected_projects.clear()
+        self.toolbar.select_btn.setChecked(False)
+        self._on_select_mode_changed(False)
+
+        # Refresh the display
+        self.app.load_projects()
+
+        QMessageBox.information(
+            self,
+            "Status Updated",
+            f"Updated {count} project(s) to '{status.replace('hold', 'On Hold').title()}'."
+        )

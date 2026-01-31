@@ -18,6 +18,7 @@ class Project:
     favorite: bool = False
     last_modified: Optional[datetime] = None
     id: Optional[int] = None
+    commands: list[dict] = field(default_factory=list)  # [{"name": "Build", "command": "npm run build"}]
 
     def __post_init__(self):
         """Validate and normalize data after initialization."""
@@ -89,7 +90,8 @@ class Project:
             'status': self.status,
             'notes': self.notes,
             'favorite': self.favorite,
-            'last_modified': self.last_modified.isoformat() if self.last_modified else None
+            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
+            'commands': self.commands
         }
 
     @classmethod
@@ -110,5 +112,6 @@ class Project:
             status=data.get('status', 'active'),
             notes=data.get('notes', ''),
             favorite=data.get('favorite', False),
-            last_modified=last_modified
+            last_modified=last_modified,
+            commands=data.get('commands', [])
         )

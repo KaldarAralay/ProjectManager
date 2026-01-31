@@ -1,7 +1,7 @@
 """Project card widget for grid view."""
 
 from PyQt6.QtWidgets import (
-    QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget
+    QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QCheckBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -17,6 +17,8 @@ class ProjectCard(QFrame):
     open_folder_clicked = pyqtSignal(Project)
     open_terminal_clicked = pyqtSignal(Project)
     open_claude_clicked = pyqtSignal(Project)
+    selection_changed = pyqtSignal(Project, bool)
+    run_command_clicked = pyqtSignal(Project, dict)  # project, command dict
 
     def __init__(self, project: Project, is_open: bool = False, parent=None):
         """Initialize the project card.
@@ -28,6 +30,7 @@ class ProjectCard(QFrame):
         super().__init__(parent)
         self.project = project
         self._is_open = is_open
+        self._select_mode = False
         self.setObjectName("projectCard")
         self.setFixedSize(220, 160)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -40,9 +43,15 @@ class ProjectCard(QFrame):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # Top row with name and favorite star
+        # Top row with checkbox, name, and indicators
         top_row = QHBoxLayout()
         top_row.setSpacing(4)
+
+        # Selection checkbox (hidden by default)
+        self.checkbox = QCheckBox()
+        self.checkbox.setVisible(False)
+        self.checkbox.stateChanged.connect(self._on_checkbox_changed)
+        top_row.addWidget(self.checkbox)
 
         # Project name
         self.name_label = QLabel(self.project.name)
@@ -172,6 +181,16 @@ class ProjectCard(QFrame):
         details_action = menu.addAction("Edit Details")
         details_action.triggered.connect(lambda: self.details_clicked.emit(self.project))
 
+        # Custom Commands submenu
+        if self.project.commands:
+            menu.addSeparator()
+            commands_menu = menu.addMenu("Custom Commands")
+            for cmd in self.project.commands:
+                action = commands_menu.addAction(cmd['name'])
+                action.triggered.connect(
+                    lambda checked, c=cmd: self.run_command_clicked.emit(self.project, c)
+                )
+
         menu.exec(event.globalPos())
 
     def update_project(self, project: Project):
@@ -193,3 +212,34 @@ class ProjectCard(QFrame):
         """
         self._is_open = is_open
         self.open_indicator.setVisible(is_open)
+
+    def set_select_mode(self, enabled: bool):
+        """Enable or disable selection mode.
+
+        Args:
+            enabled: Whether selection mode is enabled.
+        """
+        self._select_mode = enabled
+        self.checkbox.setVisible(enabled)
+        if not enabled:
+            self.checkbox.setChecked(False)
+
+    def is_selected(self) -> bool:
+        """Check if this card is selected.
+
+        Returns:
+            True if selected.
+        """
+        return self.checkbox.isChecked()
+
+    def set_selected(self, selected: bool):
+        """Set the selection state.
+
+        Args:
+            selected: Whether to select this card.
+        """
+        self.checkbox.setChecked(selected)
+
+    def _on_checkbox_changed(self, state: int):
+        """Handle checkbox state change."""
+        self.selection_changed.emit(self.project, state == 2)  # 2 = Qt.Checked

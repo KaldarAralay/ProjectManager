@@ -43,9 +43,16 @@ class Database:
                 notes TEXT,
                 favorite INTEGER DEFAULT 0,
                 last_modified TEXT,
-                last_scanned TEXT
+                last_scanned TEXT,
+                commands TEXT
             )
         """)
+
+        # Migration: add commands column if it doesn't exist
+        cursor.execute("PRAGMA table_info(projects)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'commands' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN commands TEXT")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -74,8 +81,8 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO projects
-            (name, path, languages, status, notes, favorite, last_modified, last_scanned)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (name, path, languages, status, notes, favorite, last_modified, last_scanned, commands)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project.name,
             str(project.path),
@@ -84,7 +91,8 @@ class Database:
             project.notes,
             1 if project.favorite else 0,
             project.last_modified.isoformat() if project.last_modified else None,
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
+            json.dumps(project.commands)
         ))
         self.conn.commit()
         return cursor.lastrowid
@@ -99,7 +107,7 @@ class Database:
         cursor.execute("""
             UPDATE projects
             SET name = ?, languages = ?, status = ?, notes = ?,
-                favorite = ?, last_modified = ?, last_scanned = ?
+                favorite = ?, last_modified = ?, last_scanned = ?, commands = ?
             WHERE path = ?
         """, (
             project.name,
@@ -109,6 +117,7 @@ class Database:
             1 if project.favorite else 0,
             project.last_modified.isoformat() if project.last_modified else None,
             datetime.now().isoformat(),
+            json.dumps(project.commands),
             str(project.path)
         ))
         self.conn.commit()
@@ -226,6 +235,13 @@ class Database:
             except ValueError:
                 pass
 
+        commands = []
+        if row['commands']:
+            try:
+                commands = json.loads(row['commands'])
+            except json.JSONDecodeError:
+                pass
+
         return Project(
             id=row['id'],
             name=row['name'],
@@ -234,7 +250,8 @@ class Database:
             status=row['status'],
             notes=row['notes'] or '',
             favorite=bool(row['favorite']),
-            last_modified=last_modified
+            last_modified=last_modified,
+            commands=commands
         )
 
     # Settings operations
