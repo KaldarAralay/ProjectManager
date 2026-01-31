@@ -2,7 +2,7 @@
 
 A desktop application for organizing and managing your programming projects. Built with Python and PyQt6.
 
-![Project Manager Screenshot](Screenshot.png)
+![Project Manager Screenshot](screenshot.png)
 
 ## Features
 
@@ -26,7 +26,7 @@ Download the latest `ProjectManager.exe` from the [Releases](../../releases) pag
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/projectManager.git
+   git clone https://github.com/KaldarAralay/projectManager.git
    cd projectManager
    ```
 
@@ -76,14 +76,6 @@ Define custom commands for each project that appear in the right-click context m
 | Test | `pytest` |
 | Dev Server | `npm run dev` |
 | Open in VS Code | `code {path}` |
-
-### Keyboard Shortcuts
-
-| Action | Shortcut |
-|--------|----------|
-| Search | `Ctrl+F` |
-| Refresh | `Ctrl+R` |
-| Settings | `Ctrl+,` |
 
 ## Project Structure
 
