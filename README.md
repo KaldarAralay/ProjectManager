@@ -2,7 +2,7 @@
 
 A desktop application for organizing and managing your programming projects. Built with Python and PyQt6.
 
-![Project Manager Screenshot](screenshot.png)
+![Project Manager Screenshot](Screenshot.png)
 
 ## Features
 
