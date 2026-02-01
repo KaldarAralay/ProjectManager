@@ -77,6 +77,7 @@ class ProjectManagerApp:
                 project.status = existing.status
                 project.notes = existing.notes
                 project.favorite = existing.favorite
+                project.commands = existing.commands
                 if existing.name != existing.path.name:
                     # Keep custom name
                     project.name = existing.name
