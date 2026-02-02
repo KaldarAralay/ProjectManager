@@ -85,10 +85,18 @@ class ProjectManagerApp:
             else:
                 self.db.add_project(project)
 
-        # Remove projects that no longer exist
+        # Remove projects that no longer exist or are not in any scan directory
         for project in self._projects:
             if not project.exists:
                 self.db.delete_project(project.path)
+            else:
+                # Check if project is within any configured scan directory
+                in_scan_dir = any(
+                    self._is_path_under_directory(project.path, scan_dir)
+                    for scan_dir in scan_dirs
+                )
+                if not in_scan_dir:
+                    self.db.delete_project(project.path)
 
         # Reload
         self.load_projects()
@@ -169,6 +177,22 @@ class ProjectManagerApp:
         )
 
         self._filtered_projects = filtered
+
+    def _is_path_under_directory(self, path: Path, directory: Path) -> bool:
+        """Check if a path is under (or is) a directory.
+
+        Args:
+            path: Path to check.
+            directory: Directory to check against.
+
+        Returns:
+            True if path is under or equal to directory.
+        """
+        try:
+            path.resolve().relative_to(directory.resolve())
+            return True
+        except ValueError:
+            return False
 
     def update_project(self, project: Project):
         """Update a project's metadata.
