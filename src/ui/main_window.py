@@ -19,6 +19,7 @@ from .project_list import ProjectListWidget
 from .dialogs.settings import SettingsDialog
 from .dialogs.project_details import ProjectDetailsDialog
 from .dialogs.new_project import NewProjectDialog
+from .dialogs.readme_viewer import ReadmeViewerDialog
 from ..models.project import Project
 from ..utils.process_checker import get_open_projects_by_window_titles
 
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow):
         self.list_view.open_terminal_clicked.connect(self._open_terminal)
         self.list_view.open_claude_clicked.connect(self._open_claude)
         self.list_view.run_command_clicked.connect(self._run_custom_command)
+        self.list_view.view_readme_clicked.connect(self._view_readme)
         self.list_view.setVisible(False)
         content_layout.addWidget(self.list_view)
 
@@ -203,6 +205,7 @@ class MainWindow(QMainWindow):
             card.open_claude_clicked.connect(self._open_claude)
             card.selection_changed.connect(self._on_selection_changed)
             card.run_command_clicked.connect(self._run_custom_command)
+            card.view_readme_clicked.connect(self._view_readme)
 
             # Restore select mode if active
             if self._select_mode:
@@ -349,6 +352,15 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             updated = dialog.get_project()
             self.app.update_project(updated)
+
+    def _view_readme(self, project: Project):
+        """Show README viewer for a project.
+
+        Args:
+            project: Project to view README for.
+        """
+        dialog = ReadmeViewerDialog(project.path, self)
+        dialog.exec()
 
     def _show_settings(self):
         """Show settings dialog."""

@@ -19,6 +19,7 @@ class ProjectCard(QFrame):
     open_claude_clicked = pyqtSignal(Project)
     selection_changed = pyqtSignal(Project, bool)
     run_command_clicked = pyqtSignal(Project, dict)  # project, command dict
+    view_readme_clicked = pyqtSignal(Project)
 
     def __init__(self, project: Project, is_open: bool = False, parent=None):
         """Initialize the project card.
@@ -164,6 +165,7 @@ class ProjectCard(QFrame):
     def contextMenuEvent(self, event):
         """Show context menu."""
         from PyQt6.QtWidgets import QMenu
+        from .dialogs.readme_viewer import find_readme_in_project
 
         menu = QMenu(self)
 
@@ -175,6 +177,12 @@ class ProjectCard(QFrame):
 
         claude_action = menu.addAction("Open in Claude Code")
         claude_action.triggered.connect(lambda: self.open_claude_clicked.emit(self.project))
+
+        # View README option (only if README exists)
+        if find_readme_in_project(self.project.path):
+            menu.addSeparator()
+            readme_action = menu.addAction("View README")
+            readme_action.triggered.connect(lambda: self.view_readme_clicked.emit(self.project))
 
         menu.addSeparator()
 

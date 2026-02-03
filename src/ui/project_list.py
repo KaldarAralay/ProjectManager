@@ -19,6 +19,7 @@ class ProjectListWidget(QTableWidget):
     open_terminal_clicked = pyqtSignal(Project)
     open_claude_clicked = pyqtSignal(Project)
     run_command_clicked = pyqtSignal(Project, dict)  # project, command dict
+    view_readme_clicked = pyqtSignal(Project)
 
     def __init__(self, parent=None):
         """Initialize the list widget."""
@@ -143,6 +144,8 @@ class ProjectListWidget(QTableWidget):
         Args:
             project: Project to show menu for.
         """
+        from .dialogs.readme_viewer import find_readme_in_project
+
         menu = QMenu(self)
 
         open_action = menu.addAction("Open Folder")
@@ -153,6 +156,12 @@ class ProjectListWidget(QTableWidget):
 
         claude_action = menu.addAction("Open in Claude Code")
         claude_action.triggered.connect(lambda: self.open_claude_clicked.emit(project))
+
+        # View README option (only if README exists)
+        if find_readme_in_project(project.path):
+            menu.addSeparator()
+            readme_action = menu.addAction("View README")
+            readme_action.triggered.connect(lambda: self.view_readme_clicked.emit(project))
 
         menu.addSeparator()
 
