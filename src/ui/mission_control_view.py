@@ -19,6 +19,7 @@ _BLUE = "#60a5fa"
 _BLUE_DIM = "#3d6e8f"
 _BLUE_DARK = "#1a3152"
 _AMBER = "#fbbf24"
+_RED = "#f87171"
 _PANEL_BG = "#0f1923"
 _PANEL_BORDER = "#1a3152"
 _BG = "#0a0e17"
@@ -91,15 +92,28 @@ def _panel_style():
     )
 
 
-def _mc_button(text):
+def _mc_button(text, color=_BLUE_DIM, hover_color=_GREEN):
     """Create a small themed button for the status bar."""
     btn = QPushButton(text)
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     btn.setStyleSheet(
-        f"QPushButton {{ color: {_BLUE_DIM}; background: transparent; "
+        f"QPushButton {{ color: {color}; background: transparent; "
         f"border: 1px solid {_BLUE_DARK}; border-radius: 3px; "
         f"padding: 2px 8px; font-size: 10px; }}"
-        f"QPushButton:hover {{ color: {_GREEN}; border-color: {_GREEN}; }}"
+        f"QPushButton:hover {{ color: {hover_color}; border-color: {hover_color}; }}"
+    )
+    return btn
+
+
+def _status_button(text, color):
+    """Create a small colored status button."""
+    btn = QPushButton(text)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.setStyleSheet(
+        f"QPushButton {{ color: #ffffff; background: {color}; "
+        f"border: none; border-radius: 3px; "
+        f"padding: 2px 8px; font-size: 10px; }}"
+        f"QPushButton:hover {{ background: {color}; opacity: 0.8; }}"
     )
     return btn
 
@@ -128,6 +142,11 @@ class MissionControlView(QWidget):
     run_command_clicked = pyqtSignal(object, dict)
     view_readme_clicked = pyqtSignal(object)
 
+    # Selection signals
+    selection_changed = pyqtSignal(object, bool)  # project, selected
+    select_mode_changed = pyqtSignal(bool)
+    batch_status_changed = pyqtSignal(str)  # 'active', 'hold', 'archived'
+
     # Global action signals
     settings_requested = pyqtSignal()
     refresh_requested = pyqtSignal()
@@ -136,6 +155,9 @@ class MissionControlView(QWidget):
         super().__init__(parent)
         self._projects: list[Project] = []
         self._met_start = time.time()
+        self._select_mode = False
+        self._selected_paths: set[str] = set()
+        self._row_widgets: dict[str, QFrame] = {}  # path -> widget for styling updates
 
         font = QFont("Consolas")
         font.setStyleHint(QFont.StyleHint.Monospace)
@@ -208,11 +230,97 @@ class MissionControlView(QWidget):
         # === Footer ===
         footer = QHBoxLayout()
         footer.addWidget(_label("HOUSTON \u2022 CAPCOM", _BLUE_DIM, 10))
+
+        # Selection controls (in footer for minimal look)
+        footer.addSpacing(20)
+
+        self._select_btn = _mc_button("\u2610 Select")
+        self._select_btn.clicked.connect(self._toggle_select_mode)
+        footer.addWidget(self._select_btn)
+
+        # Batch status buttons (hidden by default)
+        self._batch_container = QWidget()
+        batch_layout = QHBoxLayout(self._batch_container)
+        batch_layout.setContentsMargins(0, 0, 0, 0)
+        batch_layout.setSpacing(4)
+
+        self._select_count_label = _label("0 selected", _BLUE_DIM, 10)
+        batch_layout.addWidget(self._select_count_label)
+
+        active_btn = _status_button("Active", _GREEN)
+        active_btn.clicked.connect(lambda: self._on_batch_status("active"))
+        batch_layout.addWidget(active_btn)
+
+        hold_btn = _status_button("Hold", _AMBER)
+        hold_btn.clicked.connect(lambda: self._on_batch_status("hold"))
+        batch_layout.addWidget(hold_btn)
+
+        archive_btn = _status_button("Archive", _BLUE_DIM)
+        archive_btn.clicked.connect(lambda: self._on_batch_status("archived"))
+        batch_layout.addWidget(archive_btn)
+
+        cancel_btn = _mc_button("\u2715", _RED, _RED)
+        cancel_btn.setToolTip("Cancel selection")
+        cancel_btn.clicked.connect(self._exit_select_mode)
+        batch_layout.addWidget(cancel_btn)
+
+        self._batch_container.setVisible(False)
+        footer.addWidget(self._batch_container)
+
         footer.addStretch()
         self._uplink_label = _label("", _BLUE_DIM, 10)
         footer.addWidget(self._uplink_label)
         footer.addWidget(_label("SIGNAL: STRONG", _BLUE_DIM, 10))
         main.addLayout(footer)
+
+    # ------------------------------------------------------------------
+    # Selection mode
+    # ------------------------------------------------------------------
+
+    def _toggle_select_mode(self):
+        self._select_mode = not self._select_mode
+        self._selected_paths.clear()
+        self._update_select_ui()
+        self.select_mode_changed.emit(self._select_mode)
+        self._rebuild()
+
+    def _exit_select_mode(self):
+        self._select_mode = False
+        self._selected_paths.clear()
+        self._update_select_ui()
+        self.select_mode_changed.emit(False)
+        self._rebuild()
+
+    def _update_select_ui(self):
+        if self._select_mode:
+            self._select_btn.setText("\u2611 Select")
+            self._batch_container.setVisible(True)
+        else:
+            self._select_btn.setText("\u2610 Select")
+            self._batch_container.setVisible(False)
+        self._update_select_count()
+
+    def _update_select_count(self):
+        count = len(self._selected_paths)
+        self._select_count_label.setText(f"{count} selected")
+
+    def _on_batch_status(self, status: str):
+        if self._selected_paths:
+            self.batch_status_changed.emit(status)
+            self._exit_select_mode()
+
+    def set_select_mode(self, enabled: bool):
+        """External control for select mode (from main window)."""
+        if enabled != self._select_mode:
+            self._select_mode = enabled
+            self._selected_paths.clear()
+            self._update_select_ui()
+            self._rebuild()
+
+    def clear_selection(self):
+        """Clear selection state (called after batch operation)."""
+        self._selected_paths.clear()
+        self._update_select_count()
 
     # ------------------------------------------------------------------
     # MET timer
@@ -278,6 +386,7 @@ class MissionControlView(QWidget):
     # ------------------------------------------------------------------
 
     def _rebuild(self):
+        self._row_widgets.clear()
         projects = self._projects
         primary = [p for p in projects if p.favorite]
         secondary = [p for p in projects if not p.favorite]
@@ -373,18 +482,29 @@ class MissionControlView(QWidget):
         return panel
 
     def _make_row(self, project: Project) -> QFrame:
+        path_str = str(project.path)
+        is_selected = path_str in self._selected_paths
+
+        # Status color mapping
+        status_colors = {"active": _GREEN, "hold": _AMBER, "archived": _BLUE_DIM}
+        status_color = status_colors.get(project.status, _GREEN)
+
         row = QFrame()
         row.setCursor(Qt.CursorShape.PointingHandCursor)
-        row.setStyleSheet(
-            "QFrame { background-color: rgba(30,58,95,0.3); "
-            "border: 1px solid transparent; border-radius: 4px; }"
-            "QFrame:hover { background-color: rgba(30,58,95,0.5); }"
-        )
+        self._row_widgets[path_str] = row
+        self._apply_row_style(row, is_selected)
+
         h = QHBoxLayout(row)
         h.setContentsMargins(8, 6, 8, 6)
         h.setSpacing(8)
 
-        h.addWidget(_label("\u25cf", _GREEN, 10))
+        # Selection indicator or status dot
+        if self._select_mode:
+            check = "\u2611" if is_selected else "\u2610"
+            h.addWidget(_label(check, _GREEN if is_selected else _BLUE_DIM, 12))
+        else:
+            # Status dot colored by project status
+            h.addWidget(_label("\u25cf", status_color, 10))
 
         info = QVBoxLayout()
         info.setSpacing(2)
@@ -399,22 +519,62 @@ class MissionControlView(QWidget):
             _label(_elapsed_str(project.last_modified), _BLUE_DIM, 10,
                    align=Qt.AlignmentFlag.AlignRight)
         )
+        # Status badge
+        status_labels = {"active": "ACT", "hold": "HLD", "archived": "ARC"}
+        status_text = status_labels.get(project.status, "ACT")
+        right.addWidget(
+            _label(status_text, status_color, 9, bold=True,
+                   align=Qt.AlignmentFlag.AlignRight)
+        )
         if project.favorite:
             right.addWidget(
                 _label("\u2605 PRI", _AMBER, 10, align=Qt.AlignmentFlag.AlignRight)
             )
         h.addLayout(right)
 
-        # Left-click opens folder, right-click shows context menu
         row.mousePressEvent = lambda e, p=project: self._on_row_click(e, p)
         return row
+
+    def _apply_row_style(self, row: QFrame, selected: bool):
+        if selected:
+            row.setStyleSheet(
+                f"QFrame {{ background-color: rgba(74,222,128,0.2); "
+                f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
+                f"QFrame:hover {{ background-color: rgba(74,222,128,0.3); }}"
+            )
+        else:
+            row.setStyleSheet(
+                "QFrame { background-color: rgba(30,58,95,0.3); "
+                "border: 1px solid transparent; border-radius: 4px; }"
+                "QFrame:hover { background-color: rgba(30,58,95,0.5); }"
+            )
 
     def _on_row_click(self, event, project: Project):
         """Handle mouse clicks on a project row."""
         if event.button() == Qt.MouseButton.RightButton:
             self._show_project_menu(project, event.globalPosition().toPoint())
+        elif self._select_mode:
+            self._toggle_selection(project)
         else:
             self.open_clicked.emit(project)
+
+    def _toggle_selection(self, project: Project):
+        path_str = str(project.path)
+        if path_str in self._selected_paths:
+            self._selected_paths.discard(path_str)
+            selected = False
+        else:
+            self._selected_paths.add(path_str)
+            selected = True
+
+        # Update visual
+        if path_str in self._row_widgets:
+            self._apply_row_style(self._row_widgets[path_str], selected)
+
+        self._update_select_count()
+        self.selection_changed.emit(project, selected)
+        # Rebuild to update checkbox icons
+        self._rebuild()
 
     # --- Projects gauge ---
 
@@ -523,28 +683,66 @@ class MissionControlView(QWidget):
         grid = QGridLayout()
         grid.setSpacing(8)
         cols = 4
+
+        # Status color mapping
+        status_colors = {"active": _GREEN, "hold": _AMBER, "archived": _BLUE_DIM}
+        status_labels = {"active": "ACT", "hold": "HLD", "archived": "ARC"}
+
         for i, p in enumerate(projects):
+            path_str = str(p.path)
+            is_selected = path_str in self._selected_paths
+            status_color = status_colors.get(p.status, _GREEN)
+            status_text = status_labels.get(p.status, "ACT")
+
             tile = QFrame()
             tile.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._row_widgets[path_str] = tile
+            self._apply_tile_style(tile, is_selected)
+
+            tl = QVBoxLayout(tile)
+            tl.setContentsMargins(8, 6, 8, 6)
+
+            # Checkbox at top if in select mode
+            if self._select_mode:
+                check = "\u2611" if is_selected else "\u2610"
+                tl.addWidget(
+                    _label(check, _GREEN if is_selected else _BLUE_DIM, 10,
+                           align=Qt.AlignmentFlag.AlignCenter)
+                )
+
+            # Project name centered
+            tl.addWidget(
+                _label(p.name, _GREEN, 11, align=Qt.AlignmentFlag.AlignCenter)
+            )
+
+            # Bottom row: time on left, status on right
+            bottom_row = QHBoxLayout()
+            bottom_row.addWidget(
+                _label(_elapsed_str(p.last_modified), _BLUE_DIM, 9)
+            )
+            bottom_row.addStretch()
+            bottom_row.addWidget(_label("\u25cf", status_color, 8))
+            bottom_row.addWidget(_label(status_text, status_color, 8))
+            tl.addLayout(bottom_row)
+
+            tile.mousePressEvent = lambda e, proj=p: self._on_row_click(e, proj)
+            grid.addWidget(tile, i // cols, i % cols)
+        inner.addLayout(grid)
+        return panel
+
+    def _apply_tile_style(self, tile: QFrame, selected: bool):
+        if selected:
+            tile.setStyleSheet(
+                f"QFrame {{ background-color: rgba(74,222,128,0.2); "
+                f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
+                f"QFrame:hover {{ background-color: rgba(74,222,128,0.3); }}"
+            )
+        else:
             tile.setStyleSheet(
                 f"QFrame {{ background-color: rgba(30,58,95,0.3); "
                 f"border: 1px solid {_PANEL_BORDER}; border-radius: 4px; }}"
                 f"QFrame:hover {{ background-color: rgba(30,58,95,0.5); }}"
             )
-            tl = QVBoxLayout(tile)
-            tl.setContentsMargins(8, 8, 8, 8)
-            tl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            tl.addWidget(
-                _label(p.name, _GREEN, 11, align=Qt.AlignmentFlag.AlignCenter)
-            )
-            tl.addWidget(
-                _label(_elapsed_str(p.last_modified), _BLUE_DIM, 10,
-                       align=Qt.AlignmentFlag.AlignCenter)
-            )
-            tile.mousePressEvent = lambda e, proj=p: self._on_row_click(e, proj)
-            grid.addWidget(tile, i // cols, i % cols)
-        inner.addLayout(grid)
-        return panel
 
     # --- Footer helpers ---
 

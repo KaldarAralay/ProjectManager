@@ -141,6 +141,7 @@ class MainWindow(QMainWindow):
         mc.view_readme_clicked.connect(self._view_readme)
         mc.settings_requested.connect(self._show_settings)
         mc.refresh_requested.connect(self.app.refresh_projects)
+        mc.batch_status_changed.connect(self._on_mc_batch_status_change)
         mc.setVisible(False)
         main_layout.addWidget(mc)
 
@@ -516,6 +517,43 @@ class MainWindow(QMainWindow):
         self._selected_projects.clear()
         self.toolbar.select_btn.setChecked(False)
         self._on_select_mode_changed(False)
+
+        # Refresh the display
+        self.app.load_projects()
+
+        QMessageBox.information(
+            self,
+            "Status Updated",
+            f"Updated {count} project(s) to '{status.replace('hold', 'On Hold').title()}'."
+        )
+
+    def _on_mc_batch_status_change(self, status: str):
+        """Handle batch status change from Mission Control view.
+
+        Args:
+            status: New status ('active', 'hold', 'archived').
+        """
+        mc = self.mission_control_view
+        selected_paths = mc._selected_paths
+
+        if not selected_paths:
+            QMessageBox.information(
+                self,
+                "No Selection",
+                "Please select one or more projects first."
+            )
+            return
+
+        count = len(selected_paths)
+
+        # Update each selected project
+        for project in self.app.get_all_projects():
+            if str(project.path) in selected_paths:
+                project.status = status
+                self.app.update_project(project)
+
+        # Clear selection
+        mc.clear_selection()
 
         # Refresh the display
         self.app.load_projects()
