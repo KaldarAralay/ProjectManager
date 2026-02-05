@@ -455,14 +455,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_open_status(self):
         """Refresh the open status indicators for all project cards."""
-        if not self._project_cards:
-            return
-
         try:
             open_names = get_open_projects_by_window_titles()
+
+            # Update normal view cards
             for card in self._project_cards:
                 is_open = card.project.name.lower() in open_names
                 card.set_open_status(is_open)
+
+            # Update mission control view
+            self.mission_control_view.update_open_status(open_names)
         except Exception:
             pass  # Silently ignore errors in background refresh
 

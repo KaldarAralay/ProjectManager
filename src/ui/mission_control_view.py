@@ -157,7 +157,9 @@ class MissionControlView(QWidget):
         self._met_start = time.time()
         self._select_mode = False
         self._selected_paths: set[str] = set()
+        self._open_names: set[str] = set()  # lowercase project names that are open
         self._row_widgets: dict[str, QFrame] = {}  # path -> widget for styling updates
+        self._project_by_path: dict[str, Project] = {}  # for open status updates
 
         font = QFont("Consolas")
         font.setStyleHint(QFont.StyleHint.Monospace)
@@ -322,6 +324,27 @@ class MissionControlView(QWidget):
         self._selected_paths.clear()
         self._update_select_count()
 
+    def update_open_status(self, open_names: set[str]):
+        """Update which projects are currently open.
+
+        Args:
+            open_names: Set of lowercase project names that are open.
+        """
+        if open_names == self._open_names:
+            return  # No change
+
+        self._open_names = open_names
+
+        # Update styling for all tracked widgets
+        for path_str, widget in self._row_widgets.items():
+            project = self._project_by_path.get(path_str)
+            if project:
+                is_selected = path_str in self._selected_paths
+                is_open = project.name.lower() in self._open_names
+                # Determine if this is a tile (secondary) or row (primary)
+                # by checking the layout - tiles have centered alignment
+                self._apply_row_style(widget, is_selected, is_open)
+
     # ------------------------------------------------------------------
     # MET timer
     # ------------------------------------------------------------------
@@ -387,6 +410,7 @@ class MissionControlView(QWidget):
 
     def _rebuild(self):
         self._row_widgets.clear()
+        self._project_by_path.clear()
         projects = self._projects
         primary = [p for p in projects if p.favorite]
         secondary = [p for p in projects if not p.favorite]
@@ -489,10 +513,13 @@ class MissionControlView(QWidget):
         status_colors = {"active": _GREEN, "hold": _AMBER, "archived": _BLUE_DIM}
         status_color = status_colors.get(project.status, _GREEN)
 
+        is_open = project.name.lower() in self._open_names
+
         row = QFrame()
         row.setCursor(Qt.CursorShape.PointingHandCursor)
         self._row_widgets[path_str] = row
-        self._apply_row_style(row, is_selected)
+        self._project_by_path[path_str] = project
+        self._apply_row_style(row, is_selected, is_open)
 
         h = QHBoxLayout(row)
         h.setContentsMargins(8, 6, 8, 6)
@@ -535,18 +562,24 @@ class MissionControlView(QWidget):
         row.mousePressEvent = lambda e, p=project: self._on_row_click(e, p)
         return row
 
-    def _apply_row_style(self, row: QFrame, selected: bool):
+    def _apply_row_style(self, row: QFrame, selected: bool, is_open: bool = False):
         if selected:
             row.setStyleSheet(
                 f"QFrame {{ background-color: rgba(74,222,128,0.2); "
                 f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
                 f"QFrame:hover {{ background-color: rgba(74,222,128,0.3); }}"
             )
+        elif is_open:
+            row.setStyleSheet(
+                f"QFrame {{ background-color: rgba(30,58,95,0.3); "
+                f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
+                f"QFrame:hover {{ background-color: rgba(30,58,95,0.5); }}"
+            )
         else:
             row.setStyleSheet(
-                "QFrame { background-color: rgba(30,58,95,0.3); "
-                "border: 1px solid transparent; border-radius: 4px; }"
-                "QFrame:hover { background-color: rgba(30,58,95,0.5); }"
+                f"QFrame {{ background-color: rgba(30,58,95,0.3); "
+                f"border: 1px solid transparent; border-radius: 4px; }}"
+                f"QFrame:hover {{ background-color: rgba(30,58,95,0.5); }}"
             )
 
     def _on_row_click(self, event, project: Project):
@@ -691,13 +724,15 @@ class MissionControlView(QWidget):
         for i, p in enumerate(projects):
             path_str = str(p.path)
             is_selected = path_str in self._selected_paths
+            is_open = p.name.lower() in self._open_names
             status_color = status_colors.get(p.status, _GREEN)
             status_text = status_labels.get(p.status, "ACT")
 
             tile = QFrame()
             tile.setCursor(Qt.CursorShape.PointingHandCursor)
             self._row_widgets[path_str] = tile
-            self._apply_tile_style(tile, is_selected)
+            self._project_by_path[path_str] = p
+            self._apply_tile_style(tile, is_selected, is_open)
 
             tl = QVBoxLayout(tile)
             tl.setContentsMargins(8, 6, 8, 6)
@@ -730,12 +765,18 @@ class MissionControlView(QWidget):
         inner.addLayout(grid)
         return panel
 
-    def _apply_tile_style(self, tile: QFrame, selected: bool):
+    def _apply_tile_style(self, tile: QFrame, selected: bool, is_open: bool = False):
         if selected:
             tile.setStyleSheet(
                 f"QFrame {{ background-color: rgba(74,222,128,0.2); "
                 f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
                 f"QFrame:hover {{ background-color: rgba(74,222,128,0.3); }}"
+            )
+        elif is_open:
+            tile.setStyleSheet(
+                f"QFrame {{ background-color: rgba(30,58,95,0.3); "
+                f"border: 1px solid {_GREEN}; border-radius: 4px; }}"
+                f"QFrame:hover {{ background-color: rgba(30,58,95,0.5); }}"
             )
         else:
             tile.setStyleSheet(
