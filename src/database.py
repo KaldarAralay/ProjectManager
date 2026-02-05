@@ -288,6 +288,22 @@ class Database:
         )
         self.conn.commit()
 
+    def get_theme(self) -> str:
+        """Get the saved theme ID.
+
+        Returns:
+            Theme ID string, defaults to 'dark'.
+        """
+        return self.get_setting('theme', 'dark')
+
+    def set_theme(self, theme_id: str):
+        """Save the selected theme ID.
+
+        Args:
+            theme_id: Theme identifier to persist.
+        """
+        self.set_setting('theme', theme_id)
+
     def get_scan_directories(self) -> list[Path]:
         """Get configured scan directories.
 

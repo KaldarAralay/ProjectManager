@@ -11,7 +11,7 @@ from .database import Database
 from .scanner import scan_directories
 from .models.project import Project
 from .ui.main_window import MainWindow
-from .utils.theme import get_dark_theme
+from .utils.theme import get_theme_stylesheet
 
 
 class ProjectManagerApp:
@@ -23,11 +23,12 @@ class ProjectManagerApp:
         self.app.setApplicationName("Project Manager")
         self.app.setApplicationDisplayName("Project Manager")
 
-        # Apply dark theme
-        self.app.setStyleSheet(get_dark_theme())
-
         # Initialize database
         self.db = Database()
+
+        # Apply saved theme
+        self._current_theme = self.db.get_theme()
+        self.app.setStyleSheet(get_theme_stylesheet(self._current_theme))
 
         # Create main window
         self.main_window = MainWindow(self)
@@ -227,6 +228,24 @@ class ProjectManagerApp:
             directories: List of directories.
         """
         self.db.set_scan_directories(directories)
+
+    def get_theme(self) -> str:
+        """Get the current theme ID.
+
+        Returns:
+            Current theme identifier.
+        """
+        return self._current_theme
+
+    def set_theme(self, theme_id: str):
+        """Set and apply a new theme.
+
+        Args:
+            theme_id: Theme identifier to apply and persist.
+        """
+        self._current_theme = theme_id
+        self.db.set_theme(theme_id)
+        self.app.setStyleSheet(get_theme_stylesheet(theme_id))
 
     def get_editor_command(self) -> str:
         """Get the configured editor command.

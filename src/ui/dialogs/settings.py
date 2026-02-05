@@ -5,24 +5,29 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QListWidget, QListWidgetItem, QFileDialog,
-    QGroupBox, QMessageBox
+    QGroupBox, QMessageBox, QComboBox
 )
 from PyQt6.QtCore import Qt
+
+from ...utils.theme import get_available_themes
 
 
 class SettingsDialog(QDialog):
     """Dialog for application settings."""
 
-    def __init__(self, directories: list[Path], editor_command: str, parent=None):
+    def __init__(self, directories: list[Path], editor_command: str,
+                 current_theme: str = "dark", parent=None):
         """Initialize the settings dialog.
 
         Args:
             directories: Current scan directories.
             editor_command: Current editor command.
+            current_theme: Currently active theme ID.
         """
         super().__init__(parent)
         self._directories = [str(d) for d in directories]
         self._editor_command = editor_command
+        self._current_theme = current_theme
 
         self.setWindowTitle("Settings")
         self.setMinimumSize(500, 400)
@@ -32,6 +37,24 @@ class SettingsDialog(QDialog):
         """Set up the dialog UI."""
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
+
+        # Appearance section
+        appearance_group = QGroupBox("Appearance")
+        appearance_layout = QVBoxLayout(appearance_group)
+
+        theme_label = QLabel("Theme:")
+        appearance_layout.addWidget(theme_label)
+
+        self.theme_combo = QComboBox()
+        for theme_id, display_name in get_available_themes():
+            self.theme_combo.addItem(display_name, theme_id)
+        # Select current theme
+        index = self.theme_combo.findData(self._current_theme)
+        if index >= 0:
+            self.theme_combo.setCurrentIndex(index)
+
+        appearance_layout.addWidget(self.theme_combo)
+        layout.addWidget(appearance_group)
 
         # Scan directories section
         dirs_group = QGroupBox("Scan Directories")
@@ -137,6 +160,14 @@ class SettingsDialog(QDialog):
             List of directory paths.
         """
         return [Path(d) for d in self._directories]
+
+    def get_theme(self) -> str:
+        """Get the selected theme ID.
+
+        Returns:
+            Theme identifier string.
+        """
+        return self.theme_combo.currentData()
 
     def get_editor_command(self) -> str:
         """Get the configured editor command.

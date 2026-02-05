@@ -367,11 +367,13 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(
             self.app.get_scan_directories(),
             self.app.get_editor_command(),
-            self
+            current_theme=self.app.get_theme(),
+            parent=self
         )
         if dialog.exec():
             self.app.set_scan_directories(dialog.get_directories())
             self.app.set_editor_command(dialog.get_editor_command())
+            self.app.set_theme(dialog.get_theme())
 
     def _show_new_project(self):
         """Show new project dialog."""
