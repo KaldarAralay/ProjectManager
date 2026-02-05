@@ -8,8 +8,11 @@ A desktop application for organizing and managing your programming projects. Bui
 
 - **Project Discovery** - Automatically scans directories to find programming projects
 - **Language Detection** - Identifies programming languages used in each project
+- **Multiple Themes** - Choose from Dark, Light, Nord, or Mission Control themes
+- **Mission Control View** - NASA-inspired dashboard with project stats, language breakdown, and activity log
 - **Grid & List Views** - Switch between visual card layout and compact table view
 - **Status Tracking** - Mark projects as Active, On Hold, or Archived
+- **Open Project Detection** - Green border highlights projects currently open in your editor
 - **Favorites** - Star important projects for quick access
 - **Quick Actions** - Open projects in file explorer, terminal, or Claude Code
 - **Custom Commands** - Define per-project commands (build, test, deploy) accessible from the context menu
