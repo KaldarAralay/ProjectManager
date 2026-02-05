@@ -22,6 +22,7 @@ from .dialogs.new_project import NewProjectDialog
 from .dialogs.readme_viewer import ReadmeViewerDialog
 from ..models.project import Project
 from ..utils.process_checker import get_open_projects_by_window_titles
+from .mission_control_view import MissionControlView
 
 if TYPE_CHECKING:
     from ..app import ProjectManagerApp
@@ -128,6 +129,32 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.splitter)
 
+        # Mission Control view (hidden by default)
+        self.mission_control_view = MissionControlView()
+        mc = self.mission_control_view
+        mc.open_clicked.connect(self._open_project)
+        mc.details_clicked.connect(self._show_project_details)
+        mc.open_folder_clicked.connect(self._open_folder)
+        mc.open_terminal_clicked.connect(self._open_terminal)
+        mc.open_claude_clicked.connect(self._open_claude)
+        mc.run_command_clicked.connect(self._run_custom_command)
+        mc.view_readme_clicked.connect(self._view_readme)
+        mc.settings_requested.connect(self._show_settings)
+        mc.refresh_requested.connect(self.app.refresh_projects)
+        mc.setVisible(False)
+        main_layout.addWidget(mc)
+
+    def apply_theme_layout(self, theme_id: str):
+        """Switch between normal and Mission Control layouts.
+
+        Args:
+            theme_id: Current theme identifier.
+        """
+        is_mc = theme_id == "mission_control"
+        self.toolbar.setVisible(not is_mc)
+        self.splitter.setVisible(not is_mc)
+        self.mission_control_view.setVisible(is_mc)
+
     def _on_view_changed(self, view: str):
         """Handle view toggle.
 
@@ -219,6 +246,9 @@ class MainWindow(QMainWindow):
 
         # Update list view
         self.list_view.set_projects(projects)
+
+        # Update mission control view
+        self.mission_control_view.update_projects(projects)
 
     def update_language_filters(self, languages: list[str]):
         """Update the language filter list.
@@ -416,8 +446,9 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         """Handle window resize to reflow grid."""
         super().resizeEvent(event)
-        # Reflow grid on resize
-        if self._project_cards and self._current_view == 'grid':
+        # Reflow grid on resize (skip when mission control is active)
+        if (self._project_cards and self._current_view == 'grid'
+                and not self.mission_control_view.isVisible()):
             projects = [card.project for card in self._project_cards]
             self.update_projects(projects)
 

@@ -32,6 +32,7 @@ class ProjectManagerApp:
 
         # Create main window
         self.main_window = MainWindow(self)
+        self.main_window.apply_theme_layout(self._current_theme)
 
         # Load projects
         self._projects: list[Project] = []
@@ -246,6 +247,7 @@ class ProjectManagerApp:
         self._current_theme = theme_id
         self.db.set_theme(theme_id)
         self.app.setStyleSheet(get_theme_stylesheet(theme_id))
+        self.main_window.apply_theme_layout(theme_id)
 
     def get_editor_command(self) -> str:
         """Get the configured editor command.

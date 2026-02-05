@@ -417,6 +417,26 @@ THEMES = {
             "status_archived": "#d8dee9",
         },
     },
+    "mission_control": {
+        "name": "Mission Control",
+        "colors": {
+            "background": "#0a0e17",
+            "sidebar": "#0d1a2d",
+            "card": "#0f1923",
+            "card_hover": "#132a3e",
+            "border": "#1a3152",
+            "text_primary": "#4ade80",
+            "text_secondary": "#3d6e8f",
+            "accent": "#60a5fa",
+            "accent_hover": "#3b82f6",
+            "button": "#111d2e",
+            "button_hover": "#1a3152",
+            "input": "#0d1a2d",
+            "status_active": "#4ade80",
+            "status_hold": "#fbbf24",
+            "status_archived": "#60a5fa",
+        },
+    },
 }
 
 
