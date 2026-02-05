@@ -340,3 +340,19 @@ class Database:
             command: Editor command to use.
         """
         self.set_setting('editor_command', command)
+
+    def get_active_workspace(self) -> str:
+        """Get the active workspace directory for Mission Control.
+
+        Returns:
+            Directory path string, or 'all' for all workspaces.
+        """
+        return self.get_setting('mc_active_workspace', 'all')
+
+    def set_active_workspace(self, workspace: str):
+        """Set the active workspace directory for Mission Control.
+
+        Args:
+            workspace: Directory path string, or 'all' for all workspaces.
+        """
+        self.set_setting('mc_active_workspace', workspace)

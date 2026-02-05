@@ -142,8 +142,13 @@ class MainWindow(QMainWindow):
         mc.settings_requested.connect(self._show_settings)
         mc.refresh_requested.connect(self.app.refresh_projects)
         mc.batch_status_changed.connect(self._on_mc_batch_status_change)
+        mc.workspace_changed.connect(self._on_mc_workspace_changed)
         mc.setVisible(False)
         main_layout.addWidget(mc)
+
+        # Pass initial workspace state to Mission Control
+        mc.set_scan_directories(self.app.get_scan_directories())
+        mc.set_active_workspace(self.app.get_active_workspace())
 
     def apply_theme_layout(self, theme_id: str):
         """Switch between normal and Mission Control layouts.
@@ -248,7 +253,8 @@ class MainWindow(QMainWindow):
         # Update list view
         self.list_view.set_projects(projects)
 
-        # Update mission control view
+        # Update mission control view (refresh scan dirs for workspace dropdown)
+        self.mission_control_view.set_scan_directories(self.app.get_scan_directories())
         self.mission_control_view.update_projects(projects)
 
     def update_language_filters(self, languages: list[str]):
@@ -528,6 +534,14 @@ class MainWindow(QMainWindow):
             "Status Updated",
             f"Updated {count} project(s) to '{status.replace('hold', 'On Hold').title()}'."
         )
+
+    def _on_mc_workspace_changed(self, workspace: str):
+        """Handle workspace change from Mission Control view.
+
+        Args:
+            workspace: Directory path string or 'all'.
+        """
+        self.app.set_active_workspace(workspace)
 
     def _on_mc_batch_status_change(self, status: str):
         """Handle batch status change from Mission Control view.

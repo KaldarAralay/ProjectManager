@@ -6,10 +6,12 @@ from collections import Counter
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QFrame, QScrollArea, QProgressBar, QMenu, QPushButton
+    QFrame, QScrollArea, QProgressBar, QMenu, QPushButton, QComboBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
+
+from pathlib import Path
 
 from ..models.project import Project
 
@@ -147,6 +149,9 @@ class MissionControlView(QWidget):
     select_mode_changed = pyqtSignal(bool)
     batch_status_changed = pyqtSignal(str)  # 'active', 'hold', 'archived'
 
+    # Workspace signal
+    workspace_changed = pyqtSignal(str)  # directory path or 'all'
+
     # Global action signals
     settings_requested = pyqtSignal()
     refresh_requested = pyqtSignal()
@@ -154,6 +159,9 @@ class MissionControlView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._projects: list[Project] = []
+        self._all_projects: list[Project] = []  # unfiltered projects from app
+        self._scan_dirs: list[Path] = []
+        self._active_workspace: str = 'all'  # 'all' or directory path string
         self._met_start = time.time()
         self._select_mode = False
         self._selected_paths: set[str] = set()
@@ -183,15 +191,49 @@ class MissionControlView(QWidget):
         left = QHBoxLayout()
         left.setSpacing(6)
         left.addWidget(_label("\u25cf", _GREEN, 14))
-        left.addWidget(_label("SYSTEMS NOMINAL", _GREEN, 11))
+        self._status_text = _label("SYSTEMS NOMINAL", _GREEN, 11)
+        left.addWidget(self._status_text)
         left.addStretch()
         status_bar.addLayout(left, 1)
 
-        # Center: title
-        status_bar.addWidget(
-            _label("MISSION CONTROL", _BLUE_DIM, 18, align=Qt.AlignmentFlag.AlignCenter),
-            2,
+        # Center: title + workspace selector
+        center = QVBoxLayout()
+        center.setSpacing(2)
+        center.setContentsMargins(0, 0, 0, 0)
+
+        center.addWidget(
+            _label("MISSION CONTROL", _BLUE_DIM, 12,
+                   align=Qt.AlignmentFlag.AlignCenter)
         )
+
+        self._workspace_combo = QComboBox()
+        self._workspace_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._workspace_combo.setStyleSheet(
+            f"QComboBox {{"
+            f"  color: {_GREEN}; background: transparent;"
+            f"  border: 1px solid {_BLUE_DARK}; border-radius: 3px;"
+            f"  padding: 2px 8px; font-size: 11px;"
+            f"  font-family: Consolas; min-width: 160px;"
+            f"}}"
+            f"QComboBox:hover {{ border-color: {_GREEN}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+            f"QComboBox::down-arrow {{ width: 0; height: 0; }}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {_PANEL_BG}; color: {_GREEN};"
+            f"  border: 1px solid {_BLUE_DARK};"
+            f"  selection-background-color: {_BLUE_DARK};"
+            f"  font-family: Consolas; font-size: 11px;"
+            f"}}"
+        )
+        self._workspace_combo.addItem("\u25c8 ALL WORKSPACES", "all")
+        self._workspace_combo.currentIndexChanged.connect(self._on_workspace_changed)
+
+        center.addWidget(self._workspace_combo, 0, Qt.AlignmentFlag.AlignCenter)
+
+        center_widget = QWidget()
+        center_widget.setStyleSheet("background: transparent;")
+        center_widget.setLayout(center)
+        status_bar.addWidget(center_widget, 2)
 
         # Right: buttons + MET
         right_bar = QHBoxLayout()
@@ -324,6 +366,91 @@ class MissionControlView(QWidget):
         self._selected_paths.clear()
         self._update_select_count()
 
+    # ------------------------------------------------------------------
+    # Workspace management
+    # ------------------------------------------------------------------
+
+    def set_scan_directories(self, dirs: list[Path]):
+        """Update the list of scan directories (workspaces).
+
+        Args:
+            dirs: List of scan directory paths.
+        """
+        self._scan_dirs = list(dirs)
+        self._update_workspace_combo()
+
+    def set_active_workspace(self, workspace: str):
+        """Set the active workspace without emitting a signal.
+
+        Args:
+            workspace: Directory path string, or 'all'.
+        """
+        self._active_workspace = workspace
+        self._update_workspace_combo()
+
+    def _filter_by_workspace(self, projects: list[Project]) -> list[Project]:
+        """Filter projects to only those in the active workspace.
+
+        Args:
+            projects: Full list of projects.
+
+        Returns:
+            Filtered list, or the full list if workspace is 'all'.
+        """
+        if self._active_workspace == 'all':
+            return projects
+
+        workspace_path = Path(self._active_workspace)
+        filtered = []
+        for p in projects:
+            try:
+                p.path.resolve().relative_to(workspace_path.resolve())
+                filtered.append(p)
+            except ValueError:
+                continue
+        return filtered
+
+    def _update_workspace_combo(self):
+        """Sync the workspace dropdown with current scan directories and selection."""
+        if not hasattr(self, '_workspace_combo'):
+            return
+
+        combo = self._workspace_combo
+        combo.blockSignals(True)
+        combo.clear()
+
+        combo.addItem("\u25c8 ALL WORKSPACES", "all")
+        for scan_dir in self._scan_dirs:
+            display_name = scan_dir.name.upper()
+            combo.addItem(f"\u25cb {display_name}", str(scan_dir))
+
+        # Restore selection
+        idx = combo.findData(self._active_workspace)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        else:
+            combo.setCurrentIndex(0)  # fallback to "all"
+            self._active_workspace = 'all'
+
+        combo.blockSignals(False)
+
+    def _on_workspace_changed(self, index: int):
+        """Handle workspace dropdown selection change."""
+        workspace = self._workspace_combo.itemData(index)
+        if workspace is None:
+            workspace = 'all'
+        self._active_workspace = workspace
+        self._projects = self._filter_by_workspace(self._all_projects)
+        self._rebuild()
+        self.workspace_changed.emit(workspace)
+
+        # Update status text
+        if workspace == 'all':
+            self._status_text.setText("SYSTEMS NOMINAL")
+        else:
+            name = Path(workspace).name.upper()
+            self._status_text.setText(f"WORKSPACE: {name}")
+
     def update_open_status(self, open_names: set[str]):
         """Update which projects are currently open.
 
@@ -361,7 +488,8 @@ class MissionControlView(QWidget):
     # ------------------------------------------------------------------
 
     def update_projects(self, projects: list[Project]):
-        self._projects = list(projects)
+        self._all_projects = list(projects)
+        self._projects = self._filter_by_workspace(self._all_projects)
         self._rebuild()
 
     # ------------------------------------------------------------------

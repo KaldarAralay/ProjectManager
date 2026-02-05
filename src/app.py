@@ -265,6 +265,22 @@ class ProjectManagerApp:
         """
         self.db.set_editor_command(command)
 
+    def get_active_workspace(self) -> str:
+        """Get the active workspace for Mission Control.
+
+        Returns:
+            Directory path string, or 'all' for all workspaces.
+        """
+        return self.db.get_active_workspace()
+
+    def set_active_workspace(self, workspace: str):
+        """Set the active workspace for Mission Control.
+
+        Args:
+            workspace: Directory path string, or 'all' for all workspaces.
+        """
+        self.db.set_active_workspace(workspace)
+
     def cleanup(self):
         """Clean up resources."""
         self.db.close()
