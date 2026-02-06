@@ -155,6 +155,7 @@ class MissionControlView(QWidget):
     # Global action signals
     settings_requested = pyqtSignal()
     refresh_requested = pyqtSignal()
+    new_project_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -239,6 +240,10 @@ class MissionControlView(QWidget):
         right_bar = QHBoxLayout()
         right_bar.setSpacing(8)
         right_bar.addStretch()
+
+        new_btn = _mc_button("+ New")
+        new_btn.clicked.connect(self.new_project_clicked.emit)
+        right_bar.addWidget(new_btn)
 
         refresh_btn = _mc_button("\u21bb Refresh")
         refresh_btn.clicked.connect(self.refresh_requested.emit)

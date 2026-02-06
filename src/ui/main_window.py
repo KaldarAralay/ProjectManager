@@ -141,6 +141,7 @@ class MainWindow(QMainWindow):
         mc.view_readme_clicked.connect(self._view_readme)
         mc.settings_requested.connect(self._show_settings)
         mc.refresh_requested.connect(self.app.refresh_projects)
+        mc.new_project_clicked.connect(self._show_new_project)
         mc.batch_status_changed.connect(self._on_mc_batch_status_change)
         mc.workspace_changed.connect(self._on_mc_workspace_changed)
         mc.setVisible(False)
