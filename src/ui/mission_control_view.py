@@ -6,7 +6,8 @@ from collections import Counter
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QFrame, QScrollArea, QProgressBar, QMenu, QPushButton, QComboBox
+    QFrame, QScrollArea, QProgressBar, QMenu, QPushButton, QComboBox,
+    QLineEdit
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -169,6 +170,7 @@ class MissionControlView(QWidget):
         self._open_names: set[str] = set()  # lowercase project names that are open
         self._row_widgets: dict[str, QFrame] = {}  # path -> widget for styling updates
         self._project_by_path: dict[str, Project] = {}  # for open status updates
+        self._search_query: str = ''  # current search filter text
 
         font = QFont("Consolas")
         font.setStyleHint(QFont.StyleHint.Monospace)
@@ -188,12 +190,32 @@ class MissionControlView(QWidget):
         # === Status bar ===
         status_bar = QHBoxLayout()
 
-        # Left: systems nominal
+        # Left: systems nominal + search
         left = QHBoxLayout()
         left.setSpacing(6)
         left.addWidget(_label("\u25cf", _GREEN, 14))
         self._status_text = _label("SYSTEMS NOMINAL", _GREEN, 11)
         left.addWidget(self._status_text)
+
+        left.addSpacing(12)
+
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText("\u2315 SEARCH MISSIONS...")
+        self._search_input.setClearButtonEnabled(True)
+        self._search_input.setFixedWidth(200)
+        self._search_input.setStyleSheet(
+            f"QLineEdit {{"
+            f"  color: {_GREEN}; background: {_PANEL_BG};"
+            f"  border: 1px solid {_BLUE_DARK}; border-radius: 3px;"
+            f"  padding: 3px 8px; font-size: 11px;"
+            f"  font-family: Consolas;"
+            f"}}"
+            f"QLineEdit:focus {{ border-color: {_GREEN}; }}"
+            f"QLineEdit::placeholder {{ color: {_BLUE_DIM}; }}"
+        )
+        self._search_input.textChanged.connect(self._on_search_changed)
+        left.addWidget(self._search_input)
+
         left.addStretch()
         status_bar.addLayout(left, 1)
 
@@ -445,7 +467,7 @@ class MissionControlView(QWidget):
         if workspace is None:
             workspace = 'all'
         self._active_workspace = workspace
-        self._projects = self._filter_by_workspace(self._all_projects)
+        self._projects = self._filter_projects(self._all_projects)
         self._rebuild()
         self.workspace_changed.emit(workspace)
 
@@ -455,6 +477,33 @@ class MissionControlView(QWidget):
         else:
             name = Path(workspace).name.upper()
             self._status_text.setText(f"WORKSPACE: {name}")
+
+    def _on_search_changed(self, text: str):
+        """Handle search input text changes.
+
+        Args:
+            text: Current search text.
+        """
+        self._search_query = text.lower().strip()
+        self._projects = self._filter_projects(self._all_projects)
+        self._rebuild()
+
+    def _filter_projects(self, projects: list[Project]) -> list[Project]:
+        """Apply workspace and search filters to the project list.
+
+        Args:
+            projects: Full list of projects.
+
+        Returns:
+            Filtered list.
+        """
+        filtered = self._filter_by_workspace(projects)
+        if self._search_query:
+            filtered = [
+                p for p in filtered
+                if self._search_query in p.name.lower()
+            ]
+        return filtered
 
     def update_open_status(self, open_names: set[str]):
         """Update which projects are currently open.
@@ -494,7 +543,7 @@ class MissionControlView(QWidget):
 
     def update_projects(self, projects: list[Project]):
         self._all_projects = list(projects)
-        self._projects = self._filter_by_workspace(self._all_projects)
+        self._projects = self._filter_projects(self._all_projects)
         self._rebuild()
 
     # ------------------------------------------------------------------
